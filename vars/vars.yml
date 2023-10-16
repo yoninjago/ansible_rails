@@ -1,0 +1,36 @@
+---
+# app
+app_name: "ruby-app"
+deploy_directory: "/opt/{{ app_name }}"
+app_repo: "git@gitlab.slurm.io:edu/xpaste_practicum.git"
+
+# Postgresql
+postgresql_db_user: "ruby_user"
+postgresql_db_password: "ruby_password"
+postgresql_db_name: "ruby_app"
+
+# nginx
+nginx_remove_default_vhost: true
+nginx_conf_template: "app_nginx.conf.j2"
+server_name: "{{ app_name }}.com"
+
+# envs
+env_file_path: "/etc/environment"
+
+environment_vars:
+  - key: SECRET_KEY_BASE
+    value : "rails_app_secret_key_base"
+  - key: RAILS_ENV
+    value : "production"
+  - key: RAILS_LOG_TO_STDOUT
+    value : 1
+  - key: DB_HOST
+    value : "127.0.0.1"
+  - key: DB_PORT
+    value : 5432
+  - key: DB_NAME
+    value : "{{ postgresql_db_name }}"
+  - key: DB_USER
+    value : "{{ postgresql_db_user }}"
+  - key: DB_PASSWORD 
+    value : "{{ postgresql_db_password }}"

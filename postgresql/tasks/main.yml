@@ -1,0 +1,64 @@
+---
+- name: Importing specific distro variables
+  include_vars: "{{ ansible_distribution }}-{{ ansible_distribution_major_version }}.yml"
+
+- name: Ensuring all PostgreSQL packages are installed
+  ansible.builtin.yum:
+    name: "{{ postgresql_packages }}"
+    state: latest
+    update_cache: yes
+
+- name: "Find out if PostgreSQL is initialized"
+  ansible.builtin.stat:
+    path: "{{ postgresql_data_dir }}/pg_hba.conf"
+  register: postgres_data
+
+- name: "Initialize PostgreSQL"
+  ansible.builtin.shell: "/usr/bin/postgresql-setup initdb"
+  when: not postgres_data.stat.exists
+
+- name: Configure pg_hba.conf
+  ansible.builtin.template:
+    src: "{{ pg_hba_template }}"
+    dest: "{{ postgresql_data_dir }}/pg_hba.conf"
+  notify:
+  - Restart postgresql
+
+- name: "Update postgresql.conf"
+  ansible.builtin.lineinfile:
+    path: "{{ postgresql_data_dir }}/postgresql.conf"
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+  with_items:
+  - regexp: "#listen_addresses = 'localhost'"
+    line: "listen_addresses = '*'"
+  notify:
+  - Restart postgresql
+
+- name: Ensure PostgreSQL is started and enabled on boot.
+  ansible.builtin.service:
+    name: "{{ postgresql_daemon }}"
+    state: started
+    enabled: true
+
+- name: "Create app database"
+  community.postgresql.postgresql_db:
+    state: present
+    name: "{{ postgresql_db_name }}"
+  become_user: "{{ postgresql_user }}"
+
+- name: "Create db user"
+  community.postgresql.postgresql_user:
+    state: present
+    name: "{{ postgresql_db_user }}"
+    password: "{{ postgresql_db_password }}"
+  become_user: "{{ postgresql_user }}"
+
+- name: "Grant db user access to app db"
+  community.postgresql.postgresql_privs:
+    type: database
+    database: "{{ postgresql_db_name }}"
+    roles: "{{ postgresql_db_user }}"
+    grant_option: no
+    privs: all
+  become_user: "{{ postgresql_user }}"

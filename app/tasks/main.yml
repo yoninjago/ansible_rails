@@ -1,0 +1,64 @@
+---
+- name: Importing app specific vars
+  include_vars: app_packages.yml
+
+- name: Put SELinux in permissive mode, logging actions that would be blocked.
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+
+- name: Add repository
+  ansible.builtin.yum:
+    name: "{{ repository }}"
+    state: latest
+
+- name: Install required packages
+  ansible.builtin.yum:
+    name: "{{ app_packages }}"
+    state: latest
+    update_cache: true
+
+- name: Install ruby
+  ansible.builtin.yum:
+    name: "{{ ruby }}"
+    state: present
+
+- name: Clone application repository
+  ansible.builtin.git:
+    repo: "{{ app_repo }}"
+    dest: "{{ deploy_directory }}"
+    version: master
+    accept_hostkey: yes
+
+- name: Install Bundler
+  ansible.builtin.command: gem install bundler --no-document
+
+- name: upgrade rubygems
+  ansible.builtin.command: gem update --system
+
+- name: Install application dependencies
+  ansible.builtin.shell: |
+    bundle config build.nokogiri --use-system-libraries
+    bundle install --clean --force --no-cache --without development
+  args:
+    chdir: "{{ deploy_directory }}"
+
+- name: populate /etc/environment
+  ansible.builtin.lineinfile:
+    path: "{{ env_file_path }}"
+    state: present
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value}}"
+  with_items: "{{ environment_vars }}"
+
+- name: Copy systemd service file
+  ansible.builtin.template:
+    src: templates/app.service.j2
+    dest: "/etc/systemd/system/{{ app_name }}.service"
+    mode: 0644
+
+- name: Enable and start the application service
+  ansible.builtin.service:
+    name: "{{ app_name }}"
+    state: started
+    enabled: yes

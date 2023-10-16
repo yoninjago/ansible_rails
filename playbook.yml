@@ -1,0 +1,12 @@
+---
+- hosts: "web"
+  become: true
+  gather_facts: true
+  
+  vars_files:
+    - vars/vars.yml
+
+  roles:
+  - postgresql
+  - app
+  - geerlingguy.nginx
